@@ -24,6 +24,41 @@
     \lam isNilp => \lam a => isNilp a ()
   )
 
+\func nilpotentOfClass1<->abelian (G : Group) : isAbelianGroup G <-> isNilpotentGroupOfClass 1 G =>
+  (Abelian=>IsNilpotent, {?})
+\where {
+  \func subset-is-ide (A : SubSet G) => \Pi {a : G} (in-A : A a) -> a = G.ide
 
--- TODO
-\func nilpotentOfClass1<->abelian (G : Group) : isAbelianGroup G <-> isNilpotentGroupOfClass 1 G => {?}
+  \func generatedByIde (A : SubSet G) (A-is-ide : subset-is-ide A)
+    : isTrivialSubGroup (subGroupClosure A)
+    => \lam _ (inP (n, iter-in)) => iterr-apl-ide (subGroupClosure.inverse-closure A) (inv-closure-ide A A-is-ide) n iter-in
+
+    \func apl-ide (A : SubSet G) (A-is-ide : subset-is-ide A) : subset-is-ide (SubMonoid.closure.apl A)
+      => \lam in-apl => \case\elim in-apl \with {
+        | byLeft a => A-is-ide a
+        | byRight b => \case\elim b \with {
+          | byLeft a => a
+          | byRight (y, z, yA, zA, a=yz) => rewriteEq a=yz $ rewriteEq (A-is-ide yA, A-is-ide zA) idp
+        }
+      }
+
+    \func iterr-apl-ide (A : SubSet G) (A-is-ide : subset-is-ide A) (n : Nat) : subset-is-ide (iterr SubMonoid.closure.apl n A)
+      \elim n
+        | 0 => A-is-ide
+        | suc n => apl-ide (iterr SubMonoid.closure.apl n A) (iterr-apl-ide A A-is-ide n)
+
+    \func inv-closure-ide (A : SubSet G) (A-is-ide : subset-is-ide A) : subset-is-ide (grouplib.subGroupClosure.inverse-closure A)
+      => \lam in-inv => \case\elim in-inv \with {
+        | byLeft a => a
+        | byRight b => \case\elim b \with {
+          | byLeft a => A-is-ide a
+          | byRight a-inv-in-A => \let s => A-is-ide a-inv-in-A \in
+                     rewriteI Group.inverse-isInv $ rewriteEq s $ equation.group -- this is quite silly
+        }
+      }
+
+  \func Abelian=>IsNilpotent (ab : isAbelianGroup G) : isNilpotentGroupOfClass 1 G
+    => generatedByIde (commutators-subset nonProperSubgroup nonProperSubgroup)
+        (\lam (inP (x, y, _, _, a=xy)) => rewriteEq a=xy $ unfold comm $ rewriteEq (ab (inverse y) x, inv Group.*-assoc) $ rewrite (Group.inverse-left, Group.ide-left, Group.inverse-left) idp
+        )
+}
