@@ -1,0 +1,89 @@
+\import Algebra.Group
+\import Algebra.Meta
+\import Arith.Nat
+\import Data.Array (toList)
+\import Data.List
+\import Function.Meta
+\import Logic
+\import LowerCentralSeries
+\import Meta
+\import NilpotentGroup
+\import Order.LinearOrder
+\import Paths.Meta
+\import Set
+
+-- | The differential operator D_h phi (g) = phi(g)^{-1} * phi(g * h)
+\func diff {F G : Group} (h : F) (phi : F -> G) (f : F) : G
+  => inverse (phi f) G.* phi (f F.* h)
+
+-- | D_{h1*h2} phi (g) = D_h1 phi (g) * D_h2 phi (g * h1)
+\lemma lemma1_2a {G F : Group} (phi : G -> F) (h1 h2 g : G) :
+  diff (h1 G.* h2) phi g = diff h1 phi g F.* diff h2 phi (g G.* h1)
+  => simplify $ unfold diff $ rewriteEq Group.*-assoc idp
+
+-- | D_{h1*h2} phi (g) = D_h1 phi (g) * D_h2 phi (g) * D_h1 (D_h2 phi) (g)
+\lemma lemma1_2b {G F : Group} (phi : G -> F) (h1 h2 g : G) :
+  diff (h1 G.* h2) phi g = diff h1 phi g F.* diff h2 phi g F.* diff h1 (diff h2 phi) g
+=> simplify $ unfold diff $ rewriteEq Group.*-assoc $ idp
+
+-- | D_h phi (1_G) = phi(h)
+\lemma lemma1_3a {G F : Group} (phi : G -> F) (h : G) (p : phi G.ide = F.ide) :
+  diff h phi G.ide = phi h
+  => unfold diff $ simplify $ rewrite p equation.group -- Proof by direct computation
+
+-- | D_h phi (h^-1) = phi(h^-1)^-1
+\lemma lemma1_3b {G F : Group} (phi : G -> F) (h : G) (p : phi G.ide = F.ide) :
+  diff h phi (inverse h) = inverse (phi (inverse h))
+=> unfold diff $ simplify $ rewrite p equation.group
+
+\open Nat \hiding (-)
+\open NatSemiring
+\open NatOrder
+
+-- | The set Z_* = Z_>=0 u {-infinity}
+\data Z_star
+  | minus_inf
+  | val (n : Nat)
+
+\func \infix 4 <=* (x y : Z_star) : \Prop
+  | minus_inf, _ => \Sigma
+  | val n, minus_inf => Empty
+  | val n, val m => n NatSemiring.<= m
+
+\func \infixl 6 +* (x y : Z_star) : Z_star
+  | minus_inf, _ => minus_inf
+  | _, minus_inf => minus_inf
+  | val n, val m => val (n + m)
+
+-- | Definition of a super-additive vector of length c
+\func isSuperAdditive {c : Nat} (d : Array Z_star (suc c)) : \Prop
+  => \Pi (i j : Fin (suc c)) -> \Sigma
+    (i < j -> d i <=* d j)
+    (i + j NatSemiring.<= suc c -> d i +* d j <=* d (i + j))
+
+\func iterDiff {G F : Group} (phi : G -> F) (l : List G)  : G -> F
+  \elim l
+    | nil => phi
+    | h :: tail => diff h (iterDiff phi tail)
+
+-- | Definition of lc-degree
+\func hasLcDegree {G F : Group} (c : Nat) (d : Array Z_star (suc c)) (phi : G -> F) : \Prop
+  => \Pi (i : Fin (suc c)) ->
+      \case d i \with {
+        -- | If d_i = -inf, phi(G) must be in the (i+1)-th term of the series
+        | minus_inf => \Pi (g : G) -> lowerCentralSeries_1+ (suc i) F (phi g)
+        -- | If d_i >= 0, any (d_i + 1) derivatives must be in the (i+1)-th term
+        | val n => \Pi (l : Array G (suc n)) (g : G) ->
+            lowerCentralSeries_1+ (suc i) F (iterDiff phi (toList l) g)
+      }
+
+-- | Definition of the monus (dot minus) on Z_star
+-- | n -· t = n - t if n >= t, and -infinity otherwise.
+\func \infixl 6 -* (x : Z_star) (t : Nat) : Z_star
+  | minus_inf, _ => minus_inf
+  | x, 0 => x
+  | val (suc n), (suc t) => val n -* t
+  | val 0, (suc n) => minus_inf
+
+\record lcVector {c : Nat} (d : Array Z_star (suc c))
+  | is-sa : isSuperAdditive d
